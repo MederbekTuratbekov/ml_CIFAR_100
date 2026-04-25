@@ -9,6 +9,9 @@ from fastapi import FastAPI, UploadFile, File, HTTPException
 import uvicorn
 import io
 
+
+
+
 # Список из 100 классов CIFAR-100 (в правильном порядке!)
 classes = [
     'apple', 'aquarium_fish', 'baby', 'bear', 'beaver', 'bed', 'bee', 'beetle', 'bicycle', 'bottle',
@@ -20,8 +23,7 @@ classes = [
     'plain', 'plate', 'poppy', 'porcupine', 'possum', 'rabbit', 'raccoon', 'ray', 'road', 'rocket',
     'rose', 'sea', 'seal', 'shark', 'shrew', 'skunk', 'skyscraper', 'snail', 'snake', 'spider',
     'squirrel', 'streetcar', 'sunflower', 'sweet_pepper', 'table', 'tank', 'telephone', 'television', 'tiger',
-    'tractor',
-    'train', 'trout', 'tulip', 'turtle', 'wardrobe', 'whale', 'willow_tree', 'wolf', 'woman', 'worm'
+    'tractor', 'train', 'trout', 'tulip', 'turtle', 'wardrobe', 'whale', 'willow_tree', 'wolf', 'woman', 'worm'
 ]
 
 
@@ -88,6 +90,31 @@ def load_model():
 
 model, device = load_model()
 
+
+# app = FastAPI(title="CIFAR-100 VGG16")
+#
+#
+# @app.post("/predict")
+# async def predict(file: UploadFile = File(...)):
+#     if not file.content_type.startswith("image/"):
+#         raise HTTPException(400, detail="Файл не изображение")
+#
+#     data = await file.read()
+#     img = Image.open(io.BytesIO(data)).convert("RGB")
+#
+#     img_tensor = transform(img).unsqueeze(0).to(device)
+#
+#     with torch.no_grad():
+#         output = model(img_tensor)
+#         pred_idx = output.argmax(dim=1).item()
+#
+#     return {"class": classes[pred_idx]}
+#
+# if __name__ == "__main__":
+#     uvicorn.run(app, host="127.0.0.1", port=8000)
+
+
+
 # Интерфейс Streamlit
 st.title('CIFAR-100 Классификатор')
 st.write('Модель VGG16, обучена 300 эпох → **70.24%** на тесте')
@@ -113,25 +140,3 @@ if uploaded_file is not None:
 
 
 st.caption("Совет: картинки 32×32 пикселей дают самый точный результат")
-
-# app = FastAPI(title="CIFAR-100 VGG16")
-#
-#
-# @app.post("/predict")
-# async def predict(file: UploadFile = File(...)):
-#     if not file.content_type.startswith("image/"):
-#         raise HTTPException(400, detail="Файл не изображение")
-#
-#     data = await file.read()
-#     img = Image.open(io.BytesIO(data)).convert("RGB")
-#
-#     img_tensor = transform(img).unsqueeze(0).to(device)
-#
-#     with torch.no_grad():
-#         output = model(img_tensor)
-#         pred_idx = output.argmax(dim=1).item()
-#
-#     return {"class": classes[pred_idx]}
-#
-# if __name__ == "__main__":
-#     uvicorn.run(app, host="127.0.0.1", port=8000)
