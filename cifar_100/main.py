@@ -79,7 +79,7 @@ transform = transforms.Compose([
 def load_model():
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     model = Cifar100Classification().to(device)
-    model.load_state_dict(torch.load('model_CIFAR_100.pth', map_location=device))
+    model.load_state_dict(torch.load('model_Cifar100Classification_CIFAR_100.pth', map_location=device))
     model.eval()
     return model, device
 
