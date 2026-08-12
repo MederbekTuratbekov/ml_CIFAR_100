@@ -1,179 +1,165 @@
-# Fine-Grained Visual Object Recognition System
+# CIFAR-100 Fine-Grained Object Classifier
 
-> A VGG16-style CNN web app that identifies 100 real-world object categories
-> with confidence scoring — enabling scalable automated visual tagging for
-> retail, logistics, and content moderation pipelines.
+> VGG-стиль CNN распознаёт 100 категорий объектов с отображением
+> уверенности — автоматизация визуальной классификации в e-commerce
+> и логистике.
 
 [![Python](https://img.shields.io/badge/Python-3.11-blue)]()
 [![PyTorch](https://img.shields.io/badge/PyTorch-2.x-orange)]()
-[![Streamlit](https://img.shields.io/badge/Streamlit-1.x-red)]()
-[![Accuracy](https://img.shields.io/badge/Accuracy-70.24%25-brightgreen)]()
+[![FastAPI](https://img.shields.io/badge/FastAPI-latest-teal)]()
+[![Accuracy](https://img.shields.io/badge/Train-81.33%25_|_Test-70.04%25-brightgreen)]()
 [![License: MIT](https://img.shields.io/badge/License-MIT-green)]()
 
 ---
 
-## Business Problem
+## Проблема
 
-Businesses in e-commerce, logistics, and media processing handle millions of
-unlabeled images daily — manual tagging at this scale is financially
-unsustainable and creates catalog delays of days or weeks. A model that
-recognizes 100 fine-grained object categories (from household items to wildlife
-to vehicles) replaces the most time-consuming tier of human review, cuts
-operational costs by an estimated 60–75%, and enables real-time inventory
-classification without additional headcount.
+Бизнес в e-commerce и логистике ежедневно обрабатывает миллионы
+изображений без меток. Ручная классификация 100 категорий —
+финансово неподъёмна. Этот API распознаёт объект в момент загрузки
+без участия человека.
+
+---
+
+## Структура проекта
+
+    ml_CIFAR_100/
+    ├── .gitattributes
+    ├── .gitignore
+    ├── readme.md
+    ├── requirements.txt
+    └── cifar_100/
+        ├── cifar_100.ipynb                              ← обучение (Google Colab, GPU T4)
+        ├── main.py                                      ← FastAPI + Streamlit + inference
+        ├── model_Cifar100Classification_CIFAR_100.pth
+        ├── test data/                                   ← тестовые изображения
+        ├── test1.png
+        └── test2.png
+
+---
+
+## Быстрый старт
+
+```bash
+git clone https://github.com/your-username/ml_CIFAR_100
+cd ml_CIFAR_100/cifar_100
+
+uvicorn main:app --reload --port 8000
+```
+
+Swagger: `http://localhost:8000/docs`
 
 ---
 
 ## Demo
 
-Launch the app and upload any photo:
-
 ```bash
-streamlit run main.py
+curl -X POST "http://localhost:8000/predict" \
+  -H "accept: application/json" \
+  -F "file=@tiger.jpg"
 ```
 
-**App flow:**
-1. Upload a PNG / JPG / WebP image
-2. Click **"Распознать"**
-3. Model returns the predicted class and softmax confidence score
-
-**Example output:**
-```
-✅ Это: TIGER
-Уверенность: 84.3%
+```json
+{
+  "class": "tiger"
+}
 ```
 
-**Supported categories (100 total):**
-`apple · bear · bicycle · butterfly · castle · dolphin · elephant ·
+**100 поддерживаемых классов:**
+`apple · bear · bicycle · butterfly · dolphin · elephant ·
 fox · kangaroo · leopard · motorcycle · rocket · shark · tiger · train …`
 
 ---
 
-## Results
+## Результаты
 
-| Metric    | Score   |
-|-----------|---------|
-| Accuracy  | 70.24%  |
-| F1-score  | ~0.70   |
-| Precision | ~0.71   |
-| Recall    | ~0.70   |
+| Модель                       | Train Accuracy | Test Accuracy |
+|------------------------------|----------------|---------------|
+| Random (100 классов)         | 1%             | 1%            |
+| Custom VGG-style CNN         | **81.33%**     | **70.04%**    |
 
-Best model: VGG16-style CNN with BatchNorm + Dropout + CosineAnnealingLR
-Baseline (random classifier, 100 classes): Accuracy = 1%
-↑ +69.24% improvement vs baseline
+Обучение: 100 эпох, AdamW lr=0.001, weight_decay=1e-4,
+CosineAnnealingLR (T_max=100), batch_size=128, GPU T4.
 
-> Note: ResNet-50 pretrained on ImageNet achieves ~78% on this task.
-> This model reaches 70.24% trained entirely from scratch — no transfer learning.
-
----
-
-## Dataset
-
-- **Source:** CIFAR-100 (Alex Krizhevsky / University of Toronto)
-- **Size:** 60,000 color images (50k train / 10k test)
-- **Features:** 32×32 RGB images → 3,072 pixels per sample, 100 fine-grained
-  object classes across 20 superclasses
-- **Class balance:** Balanced — exactly 500 training images per class;
-  no resampling required
+**Архитектурное решение:**
+VGG-style выбран над ResNet осознанно — CIFAR-100 это 32×32 px,
+не фото реального мира. Предобученный ResNet (ImageNet, 224×224) —
+избыточен. Эта модель обучена с нуля, весит < 10 МБ, и даёт
+70% точности без лицензионных расходов на предобученные веса.
 
 ---
 
-## Approach
+## Датасет
 
-1. **Data Loading** — Streamed via `torchvision.datasets.CIFAR100`,
-   `DataLoader` with `batch_size=64`, shuffle enabled for training
-2. **Augmentation (train only)** — `RandomHorizontalFlip`,
-   `RandomCrop(32, padding=4)`, `ColorJitter(brightness=0.2, contrast=0.2)`
-   to improve generalization across 100 classes
-3. **Normalization** — Per-channel mean/std normalization
-   `([0.5071, 0.4867, 0.4408], [0.2675, 0.2565, 0.2761])` applied to both
-   train and test splits
-4. **Model Architecture** — VGG16-style CNN: 3 convolutional blocks
-   (64→128→256 filters), each with double Conv2d + BatchNorm2d + ReLU +
-   MaxPool2d + Dropout(0.3) → `Linear(4096→1024)` + BatchNorm1d +
-   Dropout → `Linear(1024→100)`
-5. **Training** — 300 epochs (main.py) / 100 epochs (train script),
-   AdamW (lr=0.001, weight_decay=1e-4), CrossEntropyLoss,
-   CosineAnnealingLR scheduler (T_max=100)
-6. **Evaluation** — Argmax over logits + softmax confidence score
-   displayed to user; top-1 accuracy computed on 10k test images
-7. **Deployment** — Streamlit UI with `@st.cache_resource` model loading
-   (loads once, reused across sessions); real-time confidence scoring
+- **Источник:** CIFAR-100 (Alex Krizhevsky) — загружается через `torchvision`
+- **Объём:** 60 000 RGB-изображений (50K train / 10K test)
+- **Размер:** 32×32 px, 3 канала, 100 классов, 20 суперкатегорий
+- **Баланс:** 500 изображений на класс — ресэмплинг не нужен
 
 ---
 
-## Key Challenges & Solutions
+## Архитектура модели
 
-**Overfitting on 100 fine-grained classes with small images**
-With only 500 training images per class and 32×32 resolution, the model
-quickly memorized training data → applied 3-layer augmentation pipeline
-(flip + crop + color jitter) and Dropout(0.3) after every conv block →
-reduced the train/test accuracy gap from ~25% to ~8%, achieving stable
-70.24% test accuracy.
+    Conv2d(3→64, 64) + BatchNorm + ReLU×2 + MaxPool + Dropout(0.1)  → 16×16
+                   ↓
+    Conv2d(64→128, 128) + BatchNorm + ReLU×2 + MaxPool + Dropout(0.2) → 8×8
+                   ↓
+    Conv2d(128→256, 256) + BatchNorm + ReLU×2 + AdaptiveAvgPool → 1×1
+                   ↓
+    Flatten → Linear(256→512) → ReLU → Dropout(0.5) → Linear(512→100)
+                   ↓
+    argmax → class name
 
-**Learning rate instability over long training runs**
-A fixed learning rate caused loss oscillation in later epochs, preventing
-convergence → replaced with `CosineAnnealingLR` (T_max=100) which smoothly
-decays lr to near-zero then resets → training loss curve stabilized,
-contributing ~2–3% accuracy gain in the final 50 epochs.
+**Ключевые решения:**
 
-**Model reloading latency in Streamlit**
-Without caching, the VGG16 model (13 conv layers + weights) reloaded on
-every user interaction, adding 3–5 seconds of lag → wrapped model
-initialization in `@st.cache_resource` → load time reduced to a one-time
-2-second startup; all subsequent inferences run in under 100ms.
+`AdaptiveAvgPool2d((1,1))` вместо `MaxPool2d(2)` в третьем блоке —
+устраняет зависимость от фиксированного входного размера, упрощает
+inference с произвольными изображениями.
 
----
+Расширенная аугментация train: `RandomRotation(15) + RandomHorizontalFlip +
+RandomCrop(32, padding=4) + ColorJitter(0.2, 0.2, 0.2, 0.1)` — ключ
+к сужению разрыва train/test с 25% до 11%.
 
-## Tech Stack
+`label_smoothing=0.1` в `CrossEntropyLoss` — улучшает калибровку
+уверенности модели при 100 классах.
 
-| Category   | Tools                                        |
-|------------|----------------------------------------------|
-| Language   | Python 3.11                                  |
-| ML         | PyTorch, torchvision                         |
-| UI / Demo  | Streamlit                                    |
-| Data       | Pillow, Matplotlib                           |
-| Regularization | BatchNorm2d, Dropout, CosineAnnealingLR  |
-| Deploy     | Streamlit (local / Streamlit Cloud)          |
+`CosineAnnealingLR(T_max=100, eta_min=1e-5)` — плавное затухание lr,
+последние 20 эпох стабилизировали loss без ручного тюнинга.
+
+`Normalize([0.5071, 0.4867, 0.4408], [0.2675, 0.2565, 0.2761])` —
+точная нормализация по статистикам CIFAR-100, применяется к test
+без аугментации.
 
 ---
 
-## How to Run
+## Стек
 
-```bash
-# 1. Clone and install
-git clone https://github.com/your-username/visual-object-recognition-100
-cd visual-object-recognition-100
-pip install torch torchvision streamlit pillow matplotlib
-```
-
-```bash
-# 2. Train the model (saves cifar100_vgg.pth)
-python train.py
-```
-
-```bash
-# 3. Launch the web app
-streamlit run main.py
-```
+| Слой     | Технологии                                    |
+|----------|-----------------------------------------------|
+| ML       | PyTorch, torchvision, Pillow                  |
+| API      | FastAPI, Uvicorn, Streamlit                   |
+| Обучение | Google Colab (GPU T4), Jupyter                |
+| Регуляризация | BatchNorm2d, Dropout, CosineAnnealingLR  |
 
 ---
 
 ## Business Impact
 
-- ↓ ~70% reduction in manual image tagging time for catalog and inventory
-  workflows vs fully manual review (estimated)
-- ↑ 70.24% automated top-1 accuracy across 100 categories — replacing the
-  lowest-confidence human review tier and freeing analysts for edge cases
-- ↓ ~60% decrease in time-to-listing for new product uploads on e-commerce
-  platforms vs manual categorization pipelines (estimated)
-- ↑ Real-time confidence scoring enables threshold-based routing: high-confidence
-  predictions auto-approve, low-confidence ones escalate to human review
-- ↑ Trained entirely from scratch — no licensing costs for pretrained weights;
-  fully portable and retrainable on proprietary domain-specific datasets
+| Задача                               | До                          | После                    |
+|--------------------------------------|-----------------------------|--------------------------|
+| Классификация объекта                | 2–5 мин ручной работы      | < 100 мс на запрос       |
+| Охват категорий                      | Зависит от экспертизы       | 100 категорий, один вызов |
+| Масштабирование                      | Линейно к числу операторов  | REST API                 |
+| Лицензионные расходы на веса         | Есть при Transfer Learning  | Нет — обучено с нуля     |
 
 ---
 
-[//]: # (## Author)
+## Что дальше (Roadmap)
 
-[//]: # (Your Name — [LinkedIn]&#40;#&#41; | [GitHub]&#40;#&#41;)
+- [ ] `confidence` в ответе — вернуть softmax Top-5 вместе с классом
+- [ ] Docker + Nginx — production-деплой по аналогии с MNIST Fashion
+- [ ] Fine-tuning EfficientNet-B0 на CIFAR-100 — потолок кастомного CNN ~72-75%
+- [ ] MLflow — трекинг экспериментов и версионирование модели
+- [ ] Data drift мониторинг — алерт при смещении входного распределения
+
+---
